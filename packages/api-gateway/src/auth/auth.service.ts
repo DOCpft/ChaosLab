@@ -23,8 +23,19 @@ export class AuthService {
     return null;
   }
 
-  async login(user: string) {
-    const payload = { username: user };
+  async validateUserById(id: number): Promise<{ username: string; role: string } | null>{
+    const user = await this.usersService.findById(id);
+
+    if(user){
+      const { passwordHash, experiments, ...result } = user
+      return result;
+    }
+
+    return null;
+  }
+
+  async login(user: any) {
+    const payload = { username: user.username, sub: user.id };
     return {
       access_token: await this.jwtService.signAsync(payload),
     };

@@ -15,8 +15,8 @@ export class AuthController {
     if (!user) {
       return { statusCode: 401, message: 'Invalid credetials' };
     }
-    await this.authService.login(user.username);
-    return { statusCode: 200, message: 'Access is allowed' }
+    const access_token = await this.authService.login(user.username);
+    return { statusCode: 200, message: 'Access is allowed', access_token: access_token };
   }
 
   @Post('register')
