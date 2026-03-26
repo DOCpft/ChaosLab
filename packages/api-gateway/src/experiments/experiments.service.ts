@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException, ForbiddenException, Inject, ConsoleLogger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ObjectLiteral, Repository } from 'typeorm';
 import { Experiment, FaultType, StatusExperiment } from './experiment.entity';
@@ -6,12 +6,15 @@ import { CreateExperimentDto } from './dto/create-experiment-dto';
 import { User } from 'src/users/user.entity';
 import { UpdateExperimentDto } from './dto/update-experiment-dto';
 import { UpdateResult } from 'typeorm/browser';
+import { ClientProxy } from '@nestjs/microservices';
 
 @Injectable()
 export class ExperimentsService {
     constructor(
         @InjectRepository(Experiment)
-        private readonly experimentRepository: Repository<Experiment>
+        private readonly experimentRepository: Repository<Experiment>,
+        @Inject('RABBITMQ_CLIENT')
+        private readonly rabbitmqClient: ClientProxy
     ) {}
 
     async createExperiment(
@@ -20,7 +23,7 @@ export class ExperimentsService {
     ): Promise<Experiment | null> {
         
         try {
-            const experiment = await this.experimentRepository.create(
+            const experiment = this.experimentRepository.create(
                 {
                     ...createExperimentDto,
                     createdBy: user,
@@ -29,8 +32,10 @@ export class ExperimentsService {
                     createdAt: new Date()
                 }
             );
+            
+            const result = await this.experimentRepository.save(experiment);
             console.log("Experiment created successfully.");
-            return await this.experimentRepository.save(experiment);
+            return result;
         } catch (error) {
             console.error(`Create experiment error: ${error}`);
             throw new InternalServerErrorException("Unable to create experiment.");
@@ -135,7 +140,19 @@ export class ExperimentsService {
             } 
 
             // Тут будем тправлять в очередь RabbitMQ
+            const message = {   // Нужно создать тип для сообщений
+                type: 'experiment.start',
+                experimentId: experiment.id,
+                faultType: experiment.faultType,
+                params: experiment.params,
+                durationSeconds: experiment.duration,
+                targetAgentId: experiment.targetAgentId,
+                userId: user.id,
+            };
 
+            this.rabbitmqClient.emit('experiment.start', message).subscribe({
+                error: (err) => console.error("Failed to emit RabbitMQ message", err)
+            });
             experiment.statusExperiment = StatusExperiment.CREATED;
             await this.experimentRepository.save(experiment);
 

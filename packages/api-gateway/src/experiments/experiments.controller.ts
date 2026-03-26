@@ -40,4 +40,10 @@ export class ExperimentsController {
     async deleteExperiment(@Query('id') id: string, @CurrentUser() user){
         return await this.experimentService.deleteById(id, user);
     }
+
+    @Post('start')
+    @HttpCode(HttpStatus.OK)
+    async startExperiment(@Query('id') id: string, @CurrentUser() user){
+        return await this.experimentService.startExperiment(id, user);
+    }
 }

@@ -8,7 +8,7 @@ export class CreateExperimentDto {
 
     params?: Record<string, any>;
 
-    durationSeconds!: number;
+    duration!: number;
 
     targetAgentId?: string;
 }

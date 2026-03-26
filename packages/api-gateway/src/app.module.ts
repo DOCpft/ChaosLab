@@ -6,6 +6,7 @@ import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from './users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExperimentsModule } from './experiments/experiments.module';
+import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ExperimentsModule } from './experiments/experiments.module';
     AuthModule,
     UsersModule,
     ExperimentsModule,
+    RabbitmqModule,
   ],
   controllers: [AppController],
   providers: [AppService],
