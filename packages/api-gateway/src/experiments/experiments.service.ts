@@ -7,6 +7,7 @@ import { User } from 'src/users/user.entity';
 import { UpdateExperimentDto } from './dto/update-experiment-dto';
 import { UpdateResult } from 'typeorm/browser';
 import { ClientProxy } from '@nestjs/microservices';
+import { MessageToQueue } from 'common/types/message-broker.interface';
 
 @Injectable()
 export class ExperimentsService {
@@ -139,20 +140,30 @@ export class ExperimentsService {
                 throw new ForbiddenException(`Cannot delete experiment that already running!`);
             } 
 
-            // Тут будем тправлять в очередь RabbitMQ
-            const message = {   // Нужно создать тип для сообщений
-                type: 'experiment.start',
-                experimentId: experiment.id,
-                faultType: experiment.faultType,
-                params: experiment.params,
-                durationSeconds: experiment.duration,
-                targetAgentId: experiment.targetAgentId,
-                userId: user.id,
-            };
+            this.sendMessageToRabbit('experiment.start', experiment, user);
+            experiment.statusExperiment = StatusExperiment.RUNNING;
+            await this.experimentRepository.save(experiment);
 
-            this.rabbitmqClient.emit('experiment.start', message).subscribe({
-                error: (err) => console.error("Failed to emit RabbitMQ message", err)
-            });
+            return experiment;
+            
+        } catch (error) {
+            console.error(`Error starting experiment with id: ${id}`)
+            throw new InternalServerErrorException(`Unable to start the experiment for user: ${user.username}`);
+        }
+    }
+
+    async stopExperiment(id: string, user: User){
+        try {
+            const experiment = await this.getOne(id, user);
+            if(!experiment) {
+                console.error(`Experiments with id: ${id} not found`);
+                throw new NotFoundException(`Experiments with id: ${id} not found`);
+            }
+            if (![StatusExperiment.CREATED, StatusExperiment.FAILED].includes(experiment?.statusExperiment)) {
+                throw new ForbiddenException(`Cannot delete experiment that already running!`);
+            } 
+
+            this.sendMessageToRabbit('experiment.stop', experiment, user);
             experiment.statusExperiment = StatusExperiment.CREATED;
             await this.experimentRepository.save(experiment);
 
@@ -162,6 +173,25 @@ export class ExperimentsService {
             console.error(`Error starting experiment with id: ${id}`)
             throw new InternalServerErrorException(`Unable to start the experiment for user: ${user.username}`);
         }
+    }
+
+    private sendMessageToRabbit(type: string, experiment: Experiment, user: User){
+        const message: MessageToQueue = {  
+                type: type,
+                experimentId: experiment.id,
+                faultType: experiment.faultType,
+                params: experiment.params,
+                duration: experiment.duration,
+                targetAgentId: experiment.targetAgentId,
+                userId: user.id,
+            };
+
+        this.rabbitmqClient.emit('experiment.start', message).subscribe({
+            error: (err) => console.error("Failed to emit RabbitMQ message", err),
+            complete: () => {
+                console.log("Successfully sended RabbitMQ message");
+            } 
+        });
     }
 
 }

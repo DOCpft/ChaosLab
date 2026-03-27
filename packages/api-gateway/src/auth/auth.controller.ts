@@ -1,17 +1,21 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { UserLoginDto } from './dto/login-user.dto';
+import { UserRegisterDto } from './dto/register-user.dto';
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('authenticate')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() body: { username: string; password: string }) {
-    const user = await this.authService.validateUser(
-      body.username,
-      body.password,
-    );
+  @ApiOperation({ summary: "Авторизовать пользователя" })
+  @ApiBody({ type: UserLoginDto })
+  @ApiResponse({ status: 200, description: 'Пользователь авторизован' })
+  async login(@Body() loginDto: UserLoginDto) {
+    const user = await this.authService.validateUser(loginDto);
     if (!user) {
       return { statusCode: 401, message: 'Invalid credetials' };
     }
@@ -21,14 +25,13 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Зарегистрировать пользователя" })
+  @ApiBody({ type: UserRegisterDto })
+  @ApiResponse({ status: 200, description: 'Пользователь зарегистрирован' })
   async register(
-    @Body() body: { username: string; password: string; role?: string },
+    @Body() registerDto: UserRegisterDto,
   ) {
-    const user = await this.authService.register(
-      body.username,
-      body.password,
-      body.role,
-    );
+    const user = await this.authService.register(registerDto);
     if(!user) {
         return { statusCode: 401, message: "Register failed"}
     }
