@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { FaultType } from "../experiment.entity";
+import { FaultType } from "../../experiment.entity";
 
 
 export class CreateExperimentDto {
