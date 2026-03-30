@@ -9,7 +9,7 @@ services:
             POSTGRES_PASSWORD: chaos_password
             POSTGRES_DB: chaos_experiments_db
         ports:
-            - "5432:5432"
+            - "5433:5432"
         volumes:
             - pgdata:/var/lib/postgresql/data
     redis:
