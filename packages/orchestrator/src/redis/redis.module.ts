@@ -9,7 +9,7 @@ export class RedisModule {
         const redisProvider: Provider = {
             provide: 'REDIS_CLIENT',
             useFactory: (configService: ConfigService) => {
-                const redisUrl = configService.get<string>('REDIS_URL', 'redis://localhost:6379');
+                const redisUrl = configService.get<string>('REDIS_URL', process.env.REDIS_URL || 'redis://localhost:6379');
                 return new Redis(redisUrl);
             },
             inject: [ConfigService],
@@ -18,7 +18,7 @@ export class RedisModule {
         return {
             module: RedisModule,
             providers: [redisProvider, RedisService],
-            exports: [RedisModule]
+            exports: [RedisService]
         };
     }
 }

@@ -10,7 +10,6 @@ import { ClientProxy } from '@nestjs/microservices';
 import { MessageToQueue } from 'common/types/message-broker.interface';
 import { RabbitMQService } from 'src/rabbitmq/rabbitmq.service';
 import { GetExperimentDto } from './dto/responses/get-experiment.dto';
-import { plainToInstance } from 'class-transformer'
 
 @Injectable()
 export class ExperimentsService {

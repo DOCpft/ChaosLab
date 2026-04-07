@@ -14,7 +14,7 @@ import { ClickhouseModule } from './clickhouse/clickhouse.module';
       envFilePath: '.env'
     }),
     OrchestratorModule,
-    RedisModule,
+    RedisModule.forRootAsync(),
     RabbitmqModule,
     ClickhouseModule
   ],

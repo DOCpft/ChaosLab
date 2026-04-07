@@ -10,8 +10,8 @@ export class RabbitMQService implements IBrokerService {
     constructor(@Inject('RABBITMQ_CLIENT') private readonly rabbitmqClient: ClientProxy) {}
     sendMessage(type: string, experiment: Experiment, user: User){
         const message: MessageToQueue = {  
-                type: type,
-                experimentId: experiment.id,
+                type: type, 
+                experimentId: experiment.id, 
                 faultType: experiment.faultType,
                 params: experiment.params,
                 duration: experiment.duration,
