@@ -2,6 +2,7 @@ import { Body, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
+import { UserCreateDto } from 'src/users/dto/responses/create-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -44,14 +45,20 @@ export class UsersService {
     username: string,
     passwordHash: string,
     role: string = 'user',
-  ): Promise<User> {
+  ): Promise<UserCreateDto> {
     try {
       const user = this.usersRepository.create({
         username,
         passwordHash,
         role,
       });
-      return await this.usersRepository.save(user);
+      const saved = await this.usersRepository.save(user);
+      const result: UserCreateDto = {
+        username: saved.username,
+        role: saved.role
+      }
+
+      return result;
     } catch (error) {
       // Логируем ошибку для диагностики
       console.error('Failed to create user:', error);

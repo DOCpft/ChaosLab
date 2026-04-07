@@ -2,27 +2,30 @@ import { Injectable, InternalServerErrorException, NotFoundException, ForbiddenE
 import { InjectRepository } from '@nestjs/typeorm';
 import { ObjectLiteral, Repository } from 'typeorm';
 import { Experiment, FaultType, StatusExperiment } from './experiment.entity';
-import { CreateExperimentDto } from './dto/create-experiment-dto';
+import { CreateExperimentDto } from './dto/requests/create-experiment-dto';
 import { User } from 'src/users/user.entity';
-import { UpdateExperimentDto } from './dto/update-experiment-dto';
+import { UpdateExperimentDto } from './dto/requests/update-experiment-dto';
 import { UpdateResult } from 'typeorm/browser';
 import { ClientProxy } from '@nestjs/microservices';
 import { MessageToQueue } from 'common/types/message-broker.interface';
+import { RabbitMQService } from 'src/rabbitmq/rabbitmq.service';
+import { GetExperimentDto } from './dto/responses/get-experiment.dto';
+import { plainToInstance } from 'class-transformer'
 
 @Injectable()
 export class ExperimentsService {
     constructor(
         @InjectRepository(Experiment)
         private readonly experimentRepository: Repository<Experiment>,
-        @Inject('RABBITMQ_CLIENT')
-        private readonly rabbitmqClient: ClientProxy
+        private readonly rabbitmqService: RabbitMQService
     ) {}
 
     async createExperiment(
         createExperimentDto: CreateExperimentDto,
         user: User
-    ): Promise<Experiment | null> {
-        
+    ): Promise<CreateExperimentDto> {
+
+        let createdExperiment = new CreateExperimentDto(); 
         try {
             const experiment = this.experimentRepository.create(
                 {
@@ -33,10 +36,17 @@ export class ExperimentsService {
                     createdAt: new Date()
                 }
             );
-            
+            console.log(` Юзернейм: ${experiment.createdBy?.username}`);
             const result = await this.experimentRepository.save(experiment);
+            createdExperiment = {
+                name: result.name,
+                faultType: result.faultType,
+                params: result.params,
+                duration: result.duration,
+                targetAgentId: result.targetAgentId
+            };
             console.log("Experiment created successfully.");
-            return result;
+            return createdExperiment;
         } catch (error) {
             console.error(`Create experiment error: ${error}`);
             throw new InternalServerErrorException("Unable to create experiment.");
@@ -45,46 +55,83 @@ export class ExperimentsService {
 
     }
 
-    async getOne(id: string, user: User): Promise<Experiment> {
+    async getOne(id: string, user: User): Promise<GetExperimentDto> {
         try {
+            const findedExperiment = new GetExperimentDto();
+
             const experiment = await this.experimentRepository.findOne({
-                where: {id, createdById: user.id},
+                where: { id },  // ← только ID
                 relations: ['createdBy']
             });
 
             if (!experiment) {
                 throw new NotFoundException('Experiment not found');
             }
-            if (experiment.createdBy.id !== user.id && user.role !== 'admin') {
+            
+            // Проверка прав ПОСЛЕ получения записи
+            if (!experiment.createdBy || (experiment.createdBy.id !== user.id && user.role !== 'admin')) {
                 throw new ForbiddenException('You do not have access to this experiment');
             }
-            return experiment;
+
+            const { createdBy, ...rest } = experiment;
+            Object.assign(findedExperiment, rest);
+            findedExperiment.createdBy = createdBy?.username;
+
+            return findedExperiment;
         } catch (error) {
             console.error(`Error getting experiment: ${error}`);
             throw new InternalServerErrorException("Unable to get experiment with id: ", id);
         }
     }
 
-    async getAll(user: User): Promise<Experiment[]> {
-        try {
-            if(user.role === 'admin'){ // все если админ
-                console.log(`Getting experiments for admin: ${user.username} has been successfully`);
-                return this.experimentRepository.find({ order: { createdAt: 'DESC' } });
-            }
-            console.log(`Getting experiments for user: ${user.username} has been successfully`);
-            return this.experimentRepository.find({ 
-                where: { createdBy: user },
-                order: { createdAt: 'DESC' }
-             });
-        } catch (error) {
-            console.error(`Error getting experiments ${error}`);
-            throw new InternalServerErrorException(`Unable to get experiments for user ${user.username}`);
-        }
-    }
+    async getAll(user: User): Promise<GetExperimentDto[]> {
+    try {
+        let experiments: Experiment[];
 
-    async updateById(id: string, user: User, updateDto: UpdateExperimentDto): Promise<Experiment>{
+        if (user.role === 'admin') {
+            experiments = await this.experimentRepository.find({
+                order: { createdAt: 'DESC' }
+            });
+        } else {
+            experiments = await this.experimentRepository.find({
+                where: { createdBy: { id: user.id } },
+                relations: ['createdBy'],
+                order: { createdAt: 'DESC' }
+            });
+        }
+
+        // Ручное преобразование каждого эксперимента в DTO
+        const dtos = experiments.map(exp => {
+            const dto = new GetExperimentDto();
+            dto.id = exp.id;
+            dto.name = exp.name;
+            dto.faultType = exp.faultType;
+            dto.params = exp.params;
+            dto.duration = exp.duration;
+            dto.targetAgentId = exp.targetAgentId;
+            dto.statusExperiment = exp.statusExperiment;
+            dto.createdBy = exp.createdBy?.username;
+            dto.createdById = exp.createdBy?.id;
+            dto.createdAt = exp.createdAt;
+            dto.updatedAt = exp.updatedAt;
+            return dto;
+        });
+
+        return dtos;
+    } catch (error) {
+        console.error(`Error getting experiments ${error}`);
+        throw new InternalServerErrorException(`Unable to get experiments for user ${user.username}`);
+    }
+}
+
+    async updateById(id: string, user: User, updateDto: UpdateExperimentDto): Promise<UpdateExperimentDto>{
         try {
-            const experiment = await this.getOne(id, user);
+
+            const experiment = await this.experimentRepository.findOne({
+                where: { id },
+                relations: ['createdBy']
+            });
+            let updatedExperiment = new UpdateExperimentDto();
             if(!experiment) {
                 console.error(`Experiments with id: ${id} not found`);
                 throw new NotFoundException(`Experiments with id: ${id} not found`);
@@ -93,9 +140,20 @@ export class ExperimentsService {
                 throw new ForbiddenException(`Cannot update experiment with status not created`);
             }
 
+            // Проверка прав ПОСЛЕ получения записи
+            if (!experiment.createdBy || (experiment.createdBy.id !== user.id && user.role !== 'admin')) {
+                throw new ForbiddenException('You do not have access to this experiment');
+            }
+
             Object.assign(experiment, updateDto, { updatedAt: new Date() });
-            const updatedExperiment = await this.experimentRepository.save(experiment);
-            
+            const result = await this.experimentRepository.save(experiment);
+            updatedExperiment = {
+                name: result.name, 
+                faultType: result.faultType,
+                params: result.params,
+                duration: result.duration,
+                targetAgentId: result.targetAgentId 
+            };
 
             console.log(`Experiment ${id} updating successfully`);
             return updatedExperiment;
@@ -129,18 +187,24 @@ export class ExperimentsService {
         }
     }
 
+
+    // Старт и остановку эксперимента изменим возвращаемое значение на DTO чуть позже
     async startExperiment(id: string, user: User): Promise<Experiment>{
         try {
-            const experiment = await this.getOne(id, user);
+            //const experiment = await this.getOne(id, user);
+            const experiment = await this.experimentRepository.findOne({
+                where: { id: id }
+            });
+            
             if(!experiment) {
                 console.error(`Experiments with id: ${id} not found`);
                 throw new NotFoundException(`Experiments with id: ${id} not found`);
             }
-            if (![StatusExperiment.CREATED, StatusExperiment.FAILED].includes(experiment?.statusExperiment)) {
-                throw new ForbiddenException(`Cannot delete experiment that already running!`);
+            if (experiment?.statusExperiment === StatusExperiment.RUNNING) {
+                throw new ForbiddenException(`Cannot start experiment that already running!`);
             } 
 
-            this.sendMessageToRabbit('experiment.start', experiment, user);
+            this.rabbitmqService.sendMessage('experiment.start', experiment, user);
             experiment.statusExperiment = StatusExperiment.RUNNING;
             await this.experimentRepository.save(experiment);
 
@@ -154,17 +218,19 @@ export class ExperimentsService {
 
     async stopExperiment(id: string, user: User){
         try {
-            const experiment = await this.getOne(id, user);
+            const experiment = await this.experimentRepository.findOne({
+                where: { id: id }
+            });
             if(!experiment) {
                 console.error(`Experiments with id: ${id} not found`);
                 throw new NotFoundException(`Experiments with id: ${id} not found`);
             }
-            if (![StatusExperiment.CREATED, StatusExperiment.FAILED].includes(experiment?.statusExperiment)) {
-                throw new ForbiddenException(`Cannot delete experiment that already running!`);
+            if (experiment?.statusExperiment !== StatusExperiment.RUNNING) {
+                throw new ForbiddenException(`Cannot stop experiment that already running!`);
             } 
 
-            this.sendMessageToRabbit('experiment.stop', experiment, user);
-            experiment.statusExperiment = StatusExperiment.CREATED;
+            this.rabbitmqService.sendMessage('experiment.stop', experiment, user);
+            experiment.statusExperiment = StatusExperiment.STOPPED;
             await this.experimentRepository.save(experiment);
 
             return experiment;
@@ -173,25 +239,6 @@ export class ExperimentsService {
             console.error(`Error starting experiment with id: ${id}`)
             throw new InternalServerErrorException(`Unable to start the experiment for user: ${user.username}`);
         }
-    }
-
-    private sendMessageToRabbit(type: string, experiment: Experiment, user: User){
-        const message: MessageToQueue = {  
-                type: type,
-                experimentId: experiment.id,
-                faultType: experiment.faultType,
-                params: experiment.params,
-                duration: experiment.duration,
-                targetAgentId: experiment.targetAgentId,
-                userId: user.id,
-            };
-
-        this.rabbitmqClient.emit('experiment.start', message).subscribe({
-            error: (err) => console.error("Failed to emit RabbitMQ message", err),
-            complete: () => {
-                console.log("Successfully sended RabbitMQ message");
-            } 
-        });
     }
 
 }
