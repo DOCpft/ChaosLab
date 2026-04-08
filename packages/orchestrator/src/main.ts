@@ -8,10 +8,13 @@ async function bootstrap() {
     options: {
       urls: [process.env.RABBITMQ_URL || 'amqp://chaos_user:chaos_password@localhost:5672'],
       queue: 'orchestrator_queue',
+      exchange: 'chaos.exchange',
+      exchangeType: 'topic',
+      routingKey: 'chaos.orchestrator', // binding
       queueOptions: {
-        durable: false
+        durable: true
       },
-      noAck: false,
+      noAck: true,
     },
   });
   await app.listen().finally(() => {

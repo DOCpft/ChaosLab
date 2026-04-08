@@ -3,7 +3,7 @@ import { RedisModule } from 'src/redis/redis.module';
 import { OrchestratorService } from './orchestrator.service';
 
 @Module({
-    imports: [RedisModule],
+    imports: [RedisModule.forRootAsync()],
     providers: [OrchestratorService]
 })
 export class OrchestratorModule {}
