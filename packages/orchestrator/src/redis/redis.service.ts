@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
-import { RedisLock } from 'src/common/redis-lock.interface';
+import { MessageOfQueue } from 'src/common/message-of-queue.interface';
 
 @Injectable()
 export class RedisService {
@@ -10,7 +10,7 @@ export class RedisService {
         this.logger.log('RedisService initialized');
     }
 
-    async setLock(key: string, value: RedisLock, ttl: number): Promise<boolean> {
+    async setLock(key: string, value: MessageOfQueue, ttl: number): Promise<boolean> {
         this.logger.log(`Setting lock for key ${key} with value ${value} and ttl ${ttl}`);
         try {
             const result = await this.redisClient.set(key, JSON.stringify(value), 'EX', ttl, 'NX');
@@ -34,7 +34,7 @@ export class RedisService {
     //     }
     // }
 
-    async get(key: string): Promise<RedisLock | null> {
+    async get(key: string): Promise<MessageOfQueue | null> {
         this.logger.log(`Getting value for key ${key}`);
         try {
             const value = await this.redisClient.get(key);

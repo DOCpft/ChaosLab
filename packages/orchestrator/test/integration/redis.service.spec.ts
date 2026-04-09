@@ -1,8 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RedisService } from '../../src/redis/redis.service';
-import { RedisContainer } from '@testcontainers/redis';
 import Redis from 'ioredis';
-import { RedisLock } from 'src/common/redis-lock.interface';
+import { MessageOfQueue } from 'src/common/message-of-queue.interface';
 import { Logger } from '@nestjs/common';
 
 
@@ -36,7 +35,7 @@ describe('RedisService (integration)', () => {
 
   it('should acquire lock only once', async () => {
     const key = 'lock:resource';
-    const lockValue: RedisLock = {            
+    const lockValue: MessageOfQueue = {            
         experimentId: '12435fdh',
         faultType: 'latency',
         params: '{ms: 100}',
@@ -66,7 +65,7 @@ describe('RedisService (integration)', () => {
 
   it('should delete lock', async () => {
     const key = 'lock:toDelete';
-    const value: RedisLock = {
+    const value: MessageOfQueue = {
         experimentId: '155fdh',
         faultType: 'error',
         params: '{ms: 228}',
@@ -84,7 +83,7 @@ describe('RedisService (integration)', () => {
 
   it('should respect TTL', async () => {
     const key = 'lock:ttl';
-    const value: RedisLock = {
+    const value: MessageOfQueue = {
         experimentId: '12435fdh',
         faultType: 'latency',
         params: '{ms: 100}',
