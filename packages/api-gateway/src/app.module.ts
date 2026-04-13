@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { AuthModule } from './auth/auth.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
-import { UsersModule } from './users/users.module';
+import { UsersModule } from './modules/users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ExperimentsModule } from './experiments/experiments.module';
-import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
+import { ExperimentsModule } from './modules/experiments/experiments.module';
+import { RabbitmqModule } from './modules/rabbitmq/rabbitmq.module';
 
 @Module({
   imports: [

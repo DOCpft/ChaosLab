@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { RedisService } from '../../src/redis/redis.service';
+import { RedisService } from '../../src/modules/redis/redis.service';
 import Redis from 'ioredis';
 import { MessageOfQueue } from 'src/common/message-of-queue.interface';
 import { Logger } from '@nestjs/common';
