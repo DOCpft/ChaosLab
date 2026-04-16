@@ -1,4 +1,4 @@
-import { FaultType } from "src/experiments/experiment.entity";
+import { FaultType } from "src/database/experiment.entity";
 
 export interface MessageToQueue {
     type: string;
